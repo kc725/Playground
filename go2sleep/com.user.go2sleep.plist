@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+    <key>Label</key>
+    <string>com.user.go2sleep</string>
+
+    <!-- IMPORTANT: update this path to wherever you put the shorts_guard folder -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>SHORTS_GUARD_PATH/go2sleep.sh</string>
+    </array>
+
+    <!-- Run every 60 seconds -->
+    <key>StartInterval</key>
+    <integer>60</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/go2sleep.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/go2sleep.err</string>
+
+</dict>
+</plist>

@@ -1,5 +1,5 @@
 #!/bin/bash
-# ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
 #  go2sleep.sh — YouTube Shorts Night Guard for macOS
 #  Runs every 60s via launchd. Tracks Shorts watch time in
 #  Firefox and locks your screen when you've had enough.
@@ -18,7 +18,7 @@ DECAY_SECS=30      # Seconds to subtract per idle minute (rewards breaks)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STATE_FILE="$HOME/.shorts_state"
 PYTHON_SCRIPT="$SCRIPT_DIR/check_shorts.py"
-LOG="$SCRIPT_DIR/shorts_guard.log"
+LOG="$SCRIPT_DIR/go2sleep.log"
 
 
 # ── State helpers ───────────────────────────────────────────────
@@ -150,7 +150,7 @@ fi
 shorts_status=$(python3 "$PYTHON_SCRIPT" 2>/dev/null)
 
 if [[ "$shorts_status" == "lz4_missing" ]]; then
-    notify "Shorts Guard ⚠️" "Missing dependency. Run setup.sh to fix."
+    notify "Go2Sleep ⚠️" "Missing dependency. Run setup.sh to fix."
     log "ERROR: lz4 Python module not installed."
     exit 1
 fi
@@ -170,7 +170,7 @@ if [[ "$shorts_status" == "found" ]]; then
     if [[ $seconds -ge $LIMIT_SECS ]]; then
         # ── LOCKOUT ──
         mins=$(( LIMIT_SECS / 60 ))
-        notify "🔒 Shorts Locked" "That's ${mins} minutes of Shorts tonight. Screen locked — back in 30 min."
+        notify "🔒 Go2Sleep Locked" "That's ${mins} minutes of Shorts tonight. Screen locked — back in 30 min."
         log "Limit reached. Closing tab and locking screen."
         close_shorts_tab
         sleep 1
@@ -180,11 +180,11 @@ if [[ "$shorts_status" == "found" ]]; then
 
     elif [[ $seconds -ge $WARN2_SECS ]]; then
         remaining=$(( LIMIT_SECS - seconds ))
-        notify "⚠️ Last Warning" "2 minutes left before Shorts lockout (${remaining}s remaining tonight)."
+        notify "⚠️ Last Warning (Go2Sleep)" "2 minutes left before Shorts lockout (${remaining}s remaining tonight)."
 
     elif [[ $seconds -ge $WARN1_SECS ]]; then
         remaining=$(( LIMIT_SECS - seconds ))
-        notify "📵 Shorts Check-in" "5 minutes of Shorts so far. ${remaining}s until lockout."
+        notify "📵 Go2Sleep Check-in" "5 minutes of Shorts so far. ${remaining}s until lockout."
     fi
 
 

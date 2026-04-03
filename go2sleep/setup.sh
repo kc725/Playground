@@ -1,18 +1,18 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════
-#  setup.sh — One-time installer for Shorts Guard
+#  setup.sh — One-time installer for Go2Sleep
 #  Run once from Terminal: bash setup.sh
 # ═══════════════════════════════════════════════════════
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLIST_NAME="com.user.shortsguard.plist"
+PLIST_NAME="com.user.go2sleep.plist"
 PLIST_SRC="$SCRIPT_DIR/$PLIST_NAME"
 PLIST_DST="$HOME/Library/LaunchAgents/$PLIST_NAME"
 
 echo ""
-echo "  ░░ Shorts Guard Setup ░░"
+echo "  ░░ Go2Sleep Setup ░░"
 echo ""
 
 # 1. Install lz4 Python dependency
@@ -26,7 +26,7 @@ fi
 
 # 2. Make scripts executable
 echo "→ Setting permissions..."
-chmod +x "$SCRIPT_DIR/shorts_guard.sh"
+chmod +x "$SCRIPT_DIR/go2sleep.sh"
 chmod +x "$SCRIPT_DIR/check_shorts.py"
 echo "  ✓ Done."
 
@@ -50,15 +50,15 @@ echo "  and add Terminal (or your shell) to the allowed apps."
 echo "  This lets the script close Firefox tabs."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "  ✅ Shorts Guard is running!"
+echo "  ✅ Go2Sleep is running!"
 echo ""
-echo "  Settings (edit shorts_guard.sh to change):"
+echo "  Settings (edit go2sleep.sh to change):"
 echo "    Active window : Midnight – 4 AM"
 echo "    Limit         : 10 minutes"
 echo "    Warnings      : at 5 min, 8 min"
 echo "    Cooldown      : 30 min after lockout"
 echo ""
-echo "  Logs: $SCRIPT_DIR/shorts_guard.log"
+echo "  Logs: $SCRIPT_DIR/go2sleep.log"
 echo ""
 echo "  To uninstall:"
 echo "    launchctl unload $PLIST_DST"
