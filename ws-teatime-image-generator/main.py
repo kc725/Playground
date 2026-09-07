@@ -98,7 +98,7 @@ def main():
             #Start by extracting the card images from the second column
             card_images = page.crop((IMAGE_COLUMN[0], 0, IMAGE_COLUMN[1], page.height))
 
-            for card_image in card_images.images:
+            for i, card_image in enumerate(card_images.images):
                 # Match this pdfplumber image's bounding box against
                 # PyMuPDF's image position list for the page so we can
                 # find its xref and pull the original embedded bytes.
@@ -125,7 +125,11 @@ def main():
                 #Then extract the ID and translation text for this same
                 #row, using the card image's vertical span (top/bottom) so
                 #the text stays aligned with the row it belongs to.
-                row_top, row_bottom = card_image["top"], card_image["bottom"]
+                row_top = card_image["top"]
+                if i+1 < len(card_images.images):
+                    row_bottom = card_images.images[i+1]["top"]
+                else:
+                    row_bottom = page.height
 
                 id_crop = page.crop((ID_COLUMN[0], row_top, ID_COLUMN[1], row_bottom))
                 id_text = (id_crop.extract_text() or "").strip()
@@ -157,7 +161,7 @@ def main():
     print(f"Saved {len(raw_cards)} card images with translations to '{output_dir}'\n")
 
     #debugging
-    with open('output.txt', 'w') as file:
+    with open('output/output.txt', 'w') as file:
         for translation in raw_translations:
             file.write(f"{translation}\n")
 
