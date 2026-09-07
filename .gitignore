@@ -1,1 +1,6 @@
 .aider*
+ws-teatime-image-generator/.venv/
+ws-teatime-image-generator/__pycache__/
+ws-teatime-image-generator/output/
+ws-teatime-image-generator/Gakumas-Spoilers.pdf
+.DS_Store
