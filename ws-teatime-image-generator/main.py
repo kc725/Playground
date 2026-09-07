@@ -5,21 +5,18 @@ from pathlib import Path
 
 import pdfplumber
 import pymupdf as fitz
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 import textwrap
 
 #teatime PDF column definitions
 # 0 - 100: ID
 # 100 - 170: card image
-# 170 - 400: card translation
-COLUMN_DEFINITIONS = {0, 100, 170, 400}
+COLUMN_DEFINITIONS = {0, 100, 170}
 
-# Named ranges derived from the boundaries above, so each column crop
-# reads clearly at the call site.
+# Named ranges derived from the boundaries above, so each column crop reads clearly at the call site.
 _bounds = sorted(COLUMN_DEFINITIONS)
 ID_COLUMN = (_bounds[0], _bounds[1])            # 0 - 100
 IMAGE_COLUMN = (_bounds[1], _bounds[2])         # 100 - 170
-TRANSLATION_COLUMN = (_bounds[2], _bounds[3])   # 170 - 400
 
 # Characters that aren't safe in filenames on common filesystems
 # (this covers the "/" from raw IDs like "12/34", plus the usual
@@ -31,6 +28,34 @@ def sanitize_filename(name: str, replacement: str = "-") -> str:
     cleaned = _UNSAFE_FILENAME_CHARS.sub(replacement, name).strip()
     return cleaned or "untitled"
 
+def trim_trailing_whitespace(img: Image.Image, background=(255, 255, 255), threshold=245) -> Image.Image:
+    """Crop off trailing blank rows at the bottom of a rendered image."""
+    gray = img.convert("L")
+    # Any pixel darker than threshold counts as "content"
+    bbox = gray.point(lambda p: 0 if p < threshold else 255).getbbox()
+    if bbox is None:
+        return img  # entirely blank
+    left, top, right, bottom = bbox
+    return img.crop((0, 0, img.width, bottom))
+
+def get_translation_column_bounds(page, card_image: dict, row_top: float, row_bottom: float) -> tuple[float, float]:
+    """The translation column starts right after this row's card image and
+    ends right where the next image begins — determined dynamically from
+    actual image positions on the page rather than fixed x-coordinates."""
+    left = card_image["x1"]  # right edge of this row's card image
+
+    # Any image on the page that starts to the right of this row's card image, and whose vertical span overlaps this row
+    candidates = [
+        img["x0"]
+        for img in page.images
+        if img["x0"] > left
+        and img["top"] < row_bottom
+        and img["bottom"] > row_top
+    ]
+
+    right = min(candidates) if candidates else page.width
+    return left, right
+
 TEXT_X0 = 25
 TEXT_X1 = 440
 TEXT_Y0 = 400
@@ -38,8 +63,7 @@ TEXT_Y1 = 570
 
 def overlay_translation(
     image_bytes: bytes,
-    translation: str,
-    font_path: str = None,
+    translation_img: Image.Image,
 ) -> Image.Image:
     """Return a copy of the card image with a solid white band containing
     the translation text, confined to a vertical region at the bottom."""
@@ -49,21 +73,20 @@ def overlay_translation(
     # Solid white background for the band
     draw.rectangle([(TEXT_X0, TEXT_Y0), (TEXT_X1, TEXT_Y1)], fill=(255, 255, 255))
 
-    font_size = 18
-    font = ImageFont.truetype(font_path, font_size) if font_path else ImageFont.load_default()
+    # Scale the rendered translation snippet to fit the band, preserving aspect ratio
+    scale = min((TEXT_X1 - TEXT_X0) / translation_img.width, (TEXT_Y1 - TEXT_Y0) / translation_img.height)
+    new_size = (int(translation_img.width * scale), int(translation_img.height * scale))
+    resized = translation_img.resize(new_size, Image.LANCZOS)
 
-    wrapped = textwrap.fill(translation, width=415//5)
-
-    text_bbox = draw.multiline_textbbox((0, 0), wrapped, font=font)
-    text_w = text_bbox[2] - text_bbox[0]
-    text_h = text_bbox[3] - text_bbox[1]
-
-    text_x = TEXT_X0 + 10
-    text_y = TEXT_Y0 + (TEXT_Y1 - TEXT_Y0 - text_h) // 2
-    draw.multiline_text((text_x, text_y), wrapped, font=font, fill=(0, 0, 0), align="left")
+    paste_x = TEXT_X0
+    paste_y = TEXT_Y0 + (TEXT_Y1 - TEXT_Y0 - resized.height) // 2
+    base.paste(resized, (paste_x, paste_y))
 
     return base
 
+"""
+MAIN
+"""
 def main():
     # Set up the argument parser
     parser = argparse.ArgumentParser(description="Process a data file.")
@@ -96,9 +119,13 @@ def main():
             fitz_page = doc[page_number]
 
             #Start by extracting the card images from the second column
-            card_images = page.crop((IMAGE_COLUMN[0], 0, IMAGE_COLUMN[1], page.height))
+            matches = [
+                img for img in page.images
+                if img["x0"] < IMAGE_COLUMN[1] and img["x1"] > IMAGE_COLUMN[0]  # horizontal overlap with the column
+            ]
+            card_images = sorted(matches, key=lambda img: img["top"])  # sort by vertical position
 
-            for i, card_image in enumerate(card_images.images):
+            for i, card_image in enumerate(card_images):
                 # Match this pdfplumber image's bounding box against
                 # PyMuPDF's image position list for the page so we can
                 # find its xref and pull the original embedded bytes.
@@ -126,20 +153,27 @@ def main():
                 #row, using the card image's vertical span (top/bottom) so
                 #the text stays aligned with the row it belongs to.
                 row_top = card_image["top"]
-                if i+1 < len(card_images.images):
-                    row_bottom = card_images.images[i+1]["top"]
+                if i+1 < len(card_images):
+                    row_bottom = card_images[i+1]["top"]
                 else:
-                    row_bottom = page.height
+                    row_bottom = row_top + 110 #110 is good enough prayge
 
                 id_crop = page.crop((ID_COLUMN[0], row_top, ID_COLUMN[1], row_bottom))
                 id_text = (id_crop.extract_text() or "").strip()
                 raw_ids.append(id_text)
 
+                translation_column_x0, translation_column_x1 = get_translation_column_bounds(page, card_image, row_top, row_bottom)
+
                 translation_crop = page.crop(
-                    (TRANSLATION_COLUMN[0], row_top, TRANSLATION_COLUMN[1], row_bottom)
+                    (translation_column_x0, row_top, translation_column_x1, row_bottom)
                 )
-                translation_text = (translation_crop.extract_text() or "").strip()
-                raw_translations.append(translation_text)
+                text = translation_crop.extract_text()
+                if "(CR)" in text:
+                    raw_translations.append(None)  # Mark climax cards with None to skip overlaying
+                else:
+                    translation_text = translation_crop.to_image(resolution=300).original
+                    translation_text = trim_trailing_whitespace(translation_text)
+                    raw_translations.append(translation_text)
     doc.close()
 
     #Output the extracted card images and translations
@@ -147,9 +181,12 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     for index, ((image_bytes, image_ext), translation_text) in enumerate(zip(raw_cards, raw_translations)):
         if not translation_text:
-            continue  # Skip saving if there's no translation text
-
-        composited_image = overlay_translation(image_bytes, translation_text)
+            # This is a CX, so rotate it 45 degrees
+            image = Image.open(io.BytesIO(image_bytes))
+            composited_image = image.rotate(90, expand=True)
+        else:
+            #Overlay the translation text onto the card image, unless it's a climax card.
+            composited_image = overlay_translation(image_bytes, translation_text)
         # Use the card's own ID as the filename (sanitized, since raw IDs
         # can contain characters like "/" that aren't valid in filenames).
         # Falls back to card_{index} if there's no ID for this row.
@@ -159,11 +196,6 @@ def main():
         composited_image.save(filename)
 
     print(f"Saved {len(raw_cards)} card images with translations to '{output_dir}'\n")
-
-    #debugging
-    with open('output/output.txt', 'w') as file:
-        for translation in raw_translations:
-            file.write(f"{translation}\n")
 
 if __name__ == "__main__":
     main()
