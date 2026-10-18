@@ -21,11 +21,11 @@ IMAGE_COLUMN = (_bounds[1], _bounds[2])         # 100 - 170
 # Characters that aren't safe in filenames on common filesystems
 # (this covers the "/" from raw IDs like "12/34", plus the usual
 # Windows-reserved set for good measure).
-_UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|]')
+_UNSAFE_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
 def sanitize_filename(name: str, replacement: str = "-") -> str:
-    """Replace filesystem-unsafe characters so a raw ID can be used as a filename."""
-    cleaned = _UNSAFE_FILENAME_CHARS.sub(replacement, name).strip()
+    name = " ".join(name.split())  # collapses newlines/tabs/runs of spaces
+    cleaned = _UNSAFE_FILENAME_CHARS.sub(replacement, name).strip(" .")
     return cleaned or "untitled"
 
 def trim_trailing_whitespace(img: Image.Image, background=(255, 255, 255), threshold=245) -> Image.Image:
@@ -160,6 +160,7 @@ def main():
 
                 id_crop = page.crop((ID_COLUMN[0], row_top, ID_COLUMN[1], row_bottom))
                 id_text = (id_crop.extract_text() or "").strip()
+                id_text = id_text.splitlines()[0].strip() if id_text else ""
                 raw_ids.append(id_text)
 
                 translation_column_x0, translation_column_x1 = get_translation_column_bounds(page, card_image, row_top, row_bottom)
